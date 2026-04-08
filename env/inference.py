@@ -1,72 +1,87 @@
-"""
-Inference script demonstrating how to connect to the LOB-Simulator environment
-and run a basic market-making agent.
+import os
+import json
+from openai import OpenAI
+from client import LOBEnv
+from models import LOBAction
 
-Ensure the server is running locally first:
-  python -m env.server.app --port 8000
-"""
+# Required Environment Variables
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-import sys
-sys.path.insert(0, r"c:\Users\parth\Documents\My Projects\MetaHack")
+# Optional - if you use from_docker_image()
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-import time
-from env.client import LOBEnv
-from env.models import LOBAction
-from env.server.env_environment import LOBEnvironment
+# All LLM calls use the OpenAI client configured via these variables
+client = OpenAI(
+    api_key=HF_TOKEN if HF_TOKEN else os.getenv("OPENAI_API_KEY", "dummy"),
+    base_url=API_BASE_URL
+)
+
+def get_llm_action(obs) -> LOBAction:
+    """Use the OpenAI client to decide the next action based on the observation."""
+    prompt = (
+        f"You are a high-frequency trading bot. Current market state:\n"
+        f"Mid Price: {obs.mid_price}\n"
+        f"Spread: {obs.spread}\n"
+        f"Inventory: {obs.inventory}\n\n"
+        f"Choose one of the following actions: limit_buy, limit_sell, market_buy, market_sell, hold, cancel.\n"
+        f"Respond ONLY with a JSON object in this format: {{\"action_type\": \"action\", \"quantity\": 5}}"
+    )
+    
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        content = response.choices[0].message.content
+        if content:
+            data = json.loads(content)
+            return LOBAction(
+                action_type=data.get("action_type", "hold"),
+                quantity=data.get("quantity", 1)
+            )
+    except Exception as e:
+        # Fallback on error
+        pass
+        
+    return LOBAction(action_type="hold")
 
 def run_agent():
-    print("="*60)
-    print("Starting LOB Simulator Agent")
-    print("="*60)
+    # Stdout logs follow the required structured format (START/STEP/END) exactly
+    print("START")
     
-    # We can use the environment directly for local testing without the server overhead, 
-    # but normally you would use the LOBEnv client:
-    # with LOBEnv(base_url="http://localhost:8000") as env:
-    env = LOBEnvironment()
-    obs = env.reset(seed=101)
-    
-    print(f"Initial Mid-Price: {obs.mid_price:.4f}")
-    print(f"Initial Spread:    {obs.spread:.4f}")
-    print(f"Initial Cash:      {obs.cash:.2f}")
+    if LOCAL_IMAGE_NAME:
+        env = LOBEnv.from_docker_image(LOCAL_IMAGE_NAME)
+    else:
+        # Local development fallback
+        from server.env_environment import LOBEnvironment
+        env = LOBEnvironment()
 
-    total_reward = 0.0
-
-    # Run for 200 steps
-    for step in range(200):
-        # Extremely basic market making strategy with inventory control
-        if obs.inventory > 10:
-            # We are too long. aggressively sell to reduce inventory
-            action = LOBAction(action_type="market_sell", quantity=5)
-        elif obs.inventory < -10:
-            # We are too short. aggressively buy
-            action = LOBAction(action_type="market_buy", quantity=5)
-        else:
-            # Quote both sides just outside the spread
-            if step % 2 == 0:
-                action = LOBAction(
-                    action_type="limit_buy",
-                    price=obs.mid_price - 0.02, # 2 ticks below mid
-                    quantity=3
-                )
-            else:
-                action = LOBAction(
-                    action_type="limit_sell",
-                    price=obs.mid_price + 0.02, # 2 ticks above mid
-                    quantity=3
-                )
+    try:
+        result = env.reset(seed=42)
         
-        obs = env.step(action)
-        total_reward += (obs.reward or 0)
+        # We assume the environment gives us observation directly or wrapped in a result
+        # For our local LOBEnvironment, reset returns LOBObservation
+        # For EnvClient, it returns StepResult
+        obs = result.observation if hasattr(result, 'observation') else result
         
-        if step % 10 == 0:
-            print(f"[Step {step:03d}] PnL: {obs.realized_pnl:8.2f} | Inv: {obs.inventory:3d} | Cash: {obs.cash:9.2f} | Rwd: {obs.reward:7.4f}")
+        for step_idx in range(50):
+            print("STEP")
+            
+            action = get_llm_action(obs)
+            result = env.step(action)
+            obs = result.observation if hasattr(result, 'observation') else result
+            done = result.done if hasattr(result, 'done') else obs.done
+            
+            if done:
+                break
+    finally:
+        if hasattr(env, 'close'):
+            env.close()
 
-    print("="*60)
-    print(f"Episode Done! Steps run: {obs.step_number}")
-    print(f"Final Realized PnL:   {obs.realized_pnl:.2f}")
-    print(f"Final Unrealized PnL: {obs.unrealized_pnl:.2f}")
-    print(f"Total Cumulative Reward:{total_reward:.4f}")
-    print("="*60)
+    print("END")
 
 if __name__ == "__main__":
     run_agent()
