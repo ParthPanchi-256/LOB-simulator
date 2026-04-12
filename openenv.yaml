@@ -1,0 +1,28 @@
+spec_version: 1
+name: lob-simulator
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+
+tasks:
+  - id: noise-survival
+    difficulty: easy
+    max_steps: 50
+    grader:
+      type: llm
+      prompt_template: "Score this trajectory from 0.0 to 1.0 based on PnL performance."
+
+  - id: momentum-capture
+    difficulty: medium
+    max_steps: 50
+    grader:
+      type: llm
+      prompt_template: "Score this trajectory from 0.0 to 1.0 based on trend capitalizing."
+
+  - id: adversarial-robustness
+    difficulty: hard
+    max_steps: 50
+    grader:
+      type: llm
+      prompt_template: "Score this trajectory from 0.0 to 1.0 based on loss mitigation."
