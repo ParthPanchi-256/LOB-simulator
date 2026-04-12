@@ -16,7 +16,7 @@ from models import LOBAction, LOBObservation
 
 
 class LOBEnv(
-    EnvClient[LOBAction, LOBObservation, State]
+    EnvClient[LOBAction, LOBObservation]
 ):
     """
     Client for the High-Frequency Limit Order Book Simulator.
