@@ -28,7 +28,7 @@ from openenv.core.env_server.types import State
 
 from models import LOBAction, LOBObservation
 
-from .background_traders import BackgroundTrader, create_default_traders
+from .background_traders import BackgroundTrader, create_default_traders, NoiseTrader, MomentumTrader, AdversarialTrader
 from .order_book import OrderBook, Side, Trade
 
 
