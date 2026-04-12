@@ -15,8 +15,11 @@ LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 BENCHMARK = os.getenv("BENCHMARK", "lob-simulator")
 MAX_STEPS = 50
 
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+
 client = OpenAI(
-    api_key=HF_TOKEN if HF_TOKEN else os.getenv("OPENAI_API_KEY", "dummy"),
+    api_key=HF_TOKEN,
     base_url=API_BASE_URL
 )
 

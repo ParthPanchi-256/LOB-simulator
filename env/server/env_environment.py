@@ -146,10 +146,28 @@ class LOBEnvironment(Environment):
         self._book = OrderBook(tick_size=self._tick_size)
 
         # Background traders
-        self._traders = create_default_traders(
-            intensity=self._trader_intensity,
-            enable_adversary=self._enable_adversary,
-        )
+        task_name = kwargs.get("task_name", "noise-survival")
+        if task_name == "noise-survival":
+            self._traders = [
+                NoiseTrader(trader_id="noise_1", intensity=self._trader_intensity),
+                NoiseTrader(trader_id="noise_2", intensity=self._trader_intensity * 0.7),
+            ]
+        elif task_name == "momentum-capture":
+            self._traders = [
+                NoiseTrader(trader_id="noise_1", intensity=self._trader_intensity * 0.5),
+                MomentumTrader(trader_id="momentum_1", intensity=self._trader_intensity * 1.5),
+            ]
+        elif task_name == "adversarial-robustness":
+            from .background_traders import AdversarialTrader, MeanReversionTrader
+            self._traders = [
+                NoiseTrader(trader_id="noise_1", intensity=self._trader_intensity * 0.8),
+                AdversarialTrader(trader_id="adversary_1", intensity=self._trader_intensity),
+            ]
+        else:
+            self._traders = create_default_traders(
+                intensity=self._trader_intensity,
+                enable_adversary=self._enable_adversary,
+            )
 
         # Reset agent portfolio
         self._cash = self._initial_cash
