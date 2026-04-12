@@ -34,9 +34,9 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
         flush=True,
     )
 
-def log_end(task: str, success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] task={task} success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 def get_llm_action(obs) -> LOBAction:
     prompt = (
@@ -107,7 +107,7 @@ async def run_single_task(env: LOBEnv, task_name: str):
     except Exception as e:
         print(f"[DEBUG] Execution error: {e}", flush=True)
     finally:
-        log_end(task=task_name, success=success, steps=steps_taken, score=score, rewards=rewards)
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 async def run_agent():
     try:
